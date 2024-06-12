@@ -1,0 +1,10 @@
+/submissions
+/companyfacts
+.DS_Store
+.evn
+*.zip
+*.db
+/.spyproject
+.spydata
+/.ipynb_checkpoints
+__pycache__/
