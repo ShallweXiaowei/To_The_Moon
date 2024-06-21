@@ -42,7 +42,7 @@ def write_df_to_db(df, db, table_name, index = False, if_exists = "append"):
 
 
 
-
+#########read the entile table
 def read_table_all(database, table_name):
     engine = create_engine('sqlite:///%s.db'%database)
     df = pd.read_sql_table(table_name, engine)
@@ -115,6 +115,7 @@ def calculate_d1_reletive_ret(df):
     return df/df.iloc[0] - 1
 
 if __name__ == "__main__":
-    write_latest_day_csv()
+    #write_latest_day_csv()
+    print(read_table_for_ticker(["NVDA","MSFT"]))
 
     

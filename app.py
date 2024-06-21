@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, session, redirect, url_for
+from flask import Flask, render_template, request, session, redirect, url_for,jsonify
 import pandas as pd
 import plotly.express as px
 import utils
@@ -7,14 +7,19 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import io
 import base64
-
-
+import index_forming
 
 app = Flask(__name__)
 
 # Sample DataFrame
 
 df = pd.DataFrame()
+ind_table, ind_dic = index_forming.get_industry_dic()
+cik_map = utils.read_table_all("CIK_map", "CIK_map")
+cik_map.index = cik_map["ticker"]
+entity_name_dic = cik_map.to_dict()["entity"]
+
+
 
 
 def get_data(ticker_list):
@@ -34,11 +39,20 @@ def process_input(user_input):
 
 @app.route('/', methods = ['GET','POST'])
 def index():
+    user_input, dropdown1, dropdown2 = None,None,None
     if request.method == "POST":
-        user_input = request.form['user_input']
-        ticker_list = process_input(user_input)
-        print("user input:  ", ticker_list, type(ticker_list))
-        d0_ret, corr = get_data(ticker_list)
+        
+        if 'user_input' in request.form:
+            selected =  request.form.get('user_input')
+            selected = process_input(selected)
+            
+        elif 'dropdown1' in request.form:
+            dropdown1 = request.form.get('dropdown1')
+            dropdown2 = request.form.get('dropdown2')
+            selected = ind_dic[dropdown1][dropdown2]
+        
+        print("user input:  ", selected, type(selected))
+        d0_ret, corr = get_data(selected)
     # Generate Plotly graph
         fig = go.Figure()
         cols = df.columns
@@ -71,17 +85,62 @@ def index():
     # Convert the BytesIO object to a base64 string
         img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
     else:
-        user_input = None
-        img_base64 = None
+        ticker_list = ind_dic["Real Estate"]["REIT - Mortgage"]
+        d0_ret, corr = get_data(ticker_list)
+        plt.figure(figsize=(15, 7))
+        sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f",annot_kws={"size": 10})
+        plt.title('Industry Correlation Matrix Heatmap')
         
-    return render_template('index.html', user_input=user_input, plot_url =img_base64 )
+        # Save the plot to an in-memory file
+        img = io.BytesIO()
+        plt.savefig(img, format='png')
+        img.seek(0)
+        plt.close()
+        img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
+        
+        
+        user_input = None 
+    ####common options:
+    sectors = ind_dic.keys()
+    return render_template('index.html', user_input=user_input, plot_url =img_base64,dropdown1_options = sectors )
 
-@app.route('/about')
-def about():
-    return render_template('about.html')
+@app.route('/get_sub_options', methods=['POST'])
+def get_sub_options():
+    selected_option = request.json.get('selected_option')
+    sub_options  = list(ind_dic[selected_option].keys())
+    return jsonify(sub_options)
+
+
+@app.route('/screener',methods = ['GET','POST'])
+def screener():
+    table_html = ind_table.to_html(classes='table table-striped', index=False)
+    sectors = ind_dic.keys()
+    selected = "select some text here"
+    
+    if request.method == "POST":
+        dropdown1 = request.form.get('dropdown1')
+        dropdown2 = request.form.get('dropdown2')
+        selected = ind_dic[dropdown1][dropdown2]        
+        entity_df = pd.DataFrame(index = selected)
+        entity_df.loc[:,"entity name"] = entity_df.index.map(entity_name_dic)
+        df_html = entity_df.to_html(classes='table table-striped', index=True)
+        
+        return render_template('screener.html',message = ",".join(selected),table = df_html, dropdown1_options = sectors)
+    
+    else:
+        return render_template('screener.html', dropdown1_options = sectors)
+            
+
+@app.route('/submit', methods=['POST'])
+def submit():
+    text = request.form.get('textbox')
+    return f'You entered: {text}'
+
+
 
 @app.route('/contact')
 def contact():
+    selected = ind_dic["Healthcare"]["Medical Devices"]
     return render_template('contact.html')
 
 if __name__ == '__main__':
