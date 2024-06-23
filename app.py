@@ -9,6 +9,12 @@ import io
 import base64
 import index_forming
 
+
+import matplotlib
+matplotlib.use('agg')
+
+
+
 app = Flask(__name__)
 
 # Sample DataFrame
@@ -18,7 +24,6 @@ ind_table, ind_dic = index_forming.get_industry_dic()
 cik_map = utils.read_table_all("CIK_map", "CIK_map")
 cik_map.index = cik_map["ticker"]
 entity_name_dic = cik_map.to_dict()["entity"]
-
 
 
 
@@ -39,6 +44,8 @@ def process_input(user_input):
 
 @app.route('/', methods = ['GET','POST'])
 def index():
+    sectors = ind_dic.keys()
+
     user_input, dropdown1, dropdown2 = None,None,None
     if request.method == "POST":
         
@@ -53,22 +60,25 @@ def index():
         
         print("user input:  ", selected, type(selected))
         d0_ret, corr = get_data(selected)
-    # Generate Plotly graph
+        d0_ret.index = d0_ret.index.map(lambda x: x.split(" ")[0])
+        
         fig = go.Figure()
-        cols = df.columns
-        for ticker in cols:
-            fig.add_trace(go.Scatter(x=df['Date'], y=df[ticker], mode='lines', name=ticker))
+
+        # Add traces for each stock
+        for stock in d0_ret.columns:
+            fig.add_trace(go.Scatter(x=d0_ret.index, y=d0_ret[stock], mode='lines', name=stock))
         
+        # Customize layout
         fig.update_layout(
-        title='Stock Prices Over Time',
-        xaxis_title='Date',
-        yaxis_title='Price',
-        template='plotly')
+            title='Stock Prices',
+            xaxis_title='Date',
+            yaxis_title='Price ($)',
+            showlegend=True,
+        )
         
-    
-        # Convert Plotly graph to JSON format
-        graph_json = fig.to_json()
-    
+        # Convert Plotly figure to JSON for JavaScript embedding
+        ret_base = fig.to_html(full_html=False)
+
         # Render template with data for table and graph
         
         ################ okit
@@ -79,30 +89,17 @@ def index():
         # Save the plot to an in-memory file
         img = io.BytesIO()
         plt.savefig(img, format='png')
-        img.seek(0)
+        img.seek(1)
         plt.close()
     
     # Convert the BytesIO object to a base64 string
         img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
+        return render_template('index.html', plot_div = ret_base, user_input=user_input, 
+                               plot_url =img_base64,dropdown1_options = sectors,
+                               selected = ",".join(selected))
+
     else:
-        ticker_list = ind_dic["Real Estate"]["REIT - Mortgage"]
-        d0_ret, corr = get_data(ticker_list)
-        plt.figure(figsize=(15, 7))
-        sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f",annot_kws={"size": 10})
-        plt.title('Industry Correlation Matrix Heatmap')
-        
-        # Save the plot to an in-memory file
-        img = io.BytesIO()
-        plt.savefig(img, format='png')
-        img.seek(0)
-        plt.close()
-        img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
-        
-        
-        user_input = None 
-    ####common options:
-    sectors = ind_dic.keys()
-    return render_template('index.html', user_input=user_input, plot_url =img_base64,dropdown1_options = sectors )
+        return render_template('index.html',dropdown1_options = sectors)
 
 @app.route('/get_sub_options', methods=['POST'])
 def get_sub_options():
@@ -145,51 +142,3 @@ def contact():
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5100,debug=True)
-
-
-# @app.route('/' ,methods=['GET'])
-# def index():
-#     # Generate Plotly graph
-#     fig = go.Figure()
-#     cols = df.columns
-#     for ticker in cols:
-#         fig.add_trace(go.Scatter(x=df['Date'], y=d0_ret[ticker], mode='lines', name=ticker))
-    
-#     fig.update_layout(
-#     title='Stock Prices Over Time',
-#     xaxis_title='Date',
-#     yaxis_title='Price',
-#     template='plotly')
-    
-
-#     # Convert Plotly graph to JSON format
-#     graph_json = fig.to_json()
-
-#     # Render template with data for table and graph
-    
-#     ################ okit
-#     plt.figure(figsize=(15, 7))
-#     sns.heatmap(corr, annot=True, cmap='coolwarm', fmt=".2f",annot_kws={"size": 16})
-#     plt.title('Correlation Matrix Heatmap')
-    
-#     # Save the plot to an in-memory file
-#     img = io.BytesIO()
-#     plt.savefig(img, format='png')
-#     img.seek(0)
-#     plt.close()
-    
-#     # Convert the BytesIO object to a base64 string
-#     img_base64 = base64.b64encode(img.getvalue()).decode('utf8')
-    
-#     return render_template('index.html', img_data=img_base64, graph_json=graph_json)
-
-
-
-# @app.route('/', methods=['POST'])
-# def submit():
-#     user_input = request.form.get('user_input')
-#     processed_result = process_input(user_input)
-#     return f'You entered: {user_input} <br> {processed_result}'
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0',debug=True)

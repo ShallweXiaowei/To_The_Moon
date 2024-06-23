@@ -18,6 +18,10 @@
             padding: 1px;
         }
     </style>
+    
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+    
 </head>
 
 <body>
@@ -25,14 +29,15 @@
     <nav>
         <a href="/">Home</a> | 
         <a href="/about">About</a> | 
-        <a href="/contact">Contact</a>
+        <a href="/contact">Contact</a> |
+        <a href="/screener">Screener</a>
     </nav>
     
     <div class="container">
         <form method="POST">
             <div class="form-group">
                 <label for="user_input">Enter your ticker:</label>
-                <textarea class="form-control large-input" id="user_input" name="user_input"></textarea>
+                <textarea class="form-control large-input" id="user_input" name="user_input">{{ selected }}</textarea>
             </div>
             <button type="submit" class="btn btn-primary">Submit</button>
         </form>
@@ -94,17 +99,7 @@
     </script>
     
     
-    
-    
-    
-    
-    
-    
 
-    
-    
-    
-    
     
     <h2>Correlation</h2>
     {% if plot_url %}
@@ -113,10 +108,9 @@
     
     
     <h2>industry corr</h2>
-        {% if ind_plot_url %}
-            <img src="data:image/png;base64,{{ ind_plot_url }}" alt="Plot">
-        {% endif %}
-    
+    <div id="plot_div">
+        {{ plot_div|safe }}
+    </div>
     
 </body>
 </html>
