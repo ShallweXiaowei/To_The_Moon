@@ -8,8 +8,7 @@ import seaborn as sns
 import io
 import base64
 import index_forming
-
-
+import json
 import matplotlib
 matplotlib.use('agg')
 
@@ -20,7 +19,7 @@ app = Flask(__name__)
 # Sample DataFrame
 
 df = pd.DataFrame()
-ind_table, ind_dic = index_forming.get_industry_dic()
+ind_table, ind_dic = utils.get_industry_dic()
 cik_map = utils.read_table_all("CIK_map", "CIK_map")
 cik_map.index = cik_map["ticker"]
 entity_name_dic = cik_map.to_dict()["entity"]
@@ -60,7 +59,7 @@ def index():
         
         print("user input:  ", selected, type(selected))
         d0_ret, corr = get_data(selected)
-        d0_ret.index = d0_ret.index.map(lambda x: x.split(" ")[0])
+        #d0_ret.index = d0_ret.index.map(lambda x: x.split(" ")[0])
         
         fig = go.Figure()
 
@@ -71,9 +70,14 @@ def index():
         # Customize layout
         fig.update_layout(
             title='Stock Prices',
-            xaxis_title='Date',
-            yaxis_title='Price ($)',
+            yaxis_title='Return',
+            xaxis = dict(
+                title = "Date",
+                rangeslider = dict(visible = True),
+                type = 'date'
+                ),
             showlegend=True,
+            height = 700
         )
         
         # Convert Plotly figure to JSON for JavaScript embedding
@@ -126,7 +130,7 @@ def screener():
     
     else:
         return render_template('screener.html', dropdown1_options = sectors)
-            
+
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -134,11 +138,72 @@ def submit():
     return f'You entered: {text}'
 
 
+''' 
+self index forming backend functions
 
-@app.route('/contact')
-def contact():
-    selected = ind_dic["Healthcare"]["Medical Devices"]
-    return render_template('contact.html')
+'''
+
+@app.route('/self_index')
+def self_index():
+    return render_template('self_index.html')
+
+# API 1：获取所有 sector
+@app.route('/api/sectors', methods=['GET'])
+def get_sectors():
+    return jsonify(list(ind_dic.keys()))
+
+# API 2：获取某 sector 下的 industry
+@app.route('/api/industries/<sector>', methods=['GET'])
+def get_industries(sector):
+    if sector not in ind_dic:
+        return jsonify({'error': 'Sector not found'}), 404
+    return jsonify(list(ind_dic[sector].keys()))
+
+
+
+@app.route('/api/stocks', methods=['GET'])
+def get_stocks():
+    # 获取请求参数
+    industries = request.args.get('industries')
+    start_date = request.args.get('start_date')
+    end_date = request.args.get('end_date')
+
+    # 验证行业参数
+    if not industries:
+        return jsonify({'error': '未选择行业'}), 400
+
+    industry_list = industries.split(',')
+
+    # 获取股票代码
+    stock_codes = {}
+    for sector, industries_dict in ind_dic.items():
+        for industry in industry_list:
+            if industry in industries_dict:
+                stock_codes[industry] = industries_dict[industry]
+
+    if not stock_codes:
+        return jsonify({'error': '未找到股票数据'}), 404
+
+    # 计算收益率
+    mean_dict = {}
+    for k, v in stock_codes.items():
+        mean_dict[k] = index_forming.get_d0_return(v)
+
+    # 转换为 DataFrame
+    mean_df = pd.DataFrame(mean_dict)
+
+    # 根据时间范围过滤数据
+    if start_date and end_date:
+        mean_df = mean_df.loc[start_date:end_date]
+
+    # 设置索引名称并转换为 JSON
+    mean_df.index.name = 'timestamps'
+    json_data = mean_df.reset_index().to_json(orient='records', date_format='iso')
+
+    return jsonify(json.loads(json_data))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5100,debug=True)
+    
+    
+    

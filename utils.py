@@ -40,8 +40,21 @@ def write_df_to_db(df, db, table_name, index = False, if_exists = "append"):
     #print("table %s has been written successfully"%table_name)
     return
 
-
-
+def write_df_to_db_make_sure_unique(df, db, table_name, index = False, if_exists = "append"):
+    conn = sqlite3.connect(db)
+    cursor = conn.cursor()
+    for _, row in df.iterrows():
+        cursor.execute('''
+            INSERT OR IGNORE INTO stock_price (ticker, Open, High, Low, Close, Volume, Date, Dividends,
+                  Split)
+            VALUES (?, ?, ?,?,?,?,?,?,?)
+        ''', (row['ticker'], row['Open'], row['High'], row['Low'], row['Close'], row['Volume'], row['Date'], row['Dividends'], row['Split']))
+        
+    conn.commit()
+    conn.close()
+    return
+        
+        
 #########read the entile table
 def read_table_all(database, table_name):
     engine = create_engine('sqlite:///%s.db'%database)
@@ -91,8 +104,10 @@ def write_latest_day_csv():
 def read_table_for_ticker(ticker_list):
     ticker_list = tuple(ticker_list)
     #ticker_list = ("AAPL","MSFT","TSLA","NVDA", "SLG","REI","BA","SPR", "HITI")
-    sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker IN %s AND Date > '2022-01-01'"%str(ticker_list)
-    
+    if len(ticker_list)>1:
+        sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker IN %s AND Date > '2022-01-01'"%str(ticker_list)
+    else:
+        sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker = '%s' AND Date > '2022-01-01'"%str(ticker_list[0])
     # Read the data into a Pandas DataFrame
     s = time.time()
     conn = sqlite3.connect('price.db')
@@ -100,7 +115,8 @@ def read_table_for_ticker(ticker_list):
     conn.close()
     print("query used %f seconds"%(time.time() - s))
     pf = df.pivot_table(index='Date', columns='ticker', values='Close')
-    ret = pf.pct_change(1).dropna()
+    pf.index = pd.to_datetime(pf.index,utc=True)
+    ret = pf.pct_change(1,fill_method=None).dropna()
     corr = ret.corr()
     
     # plt.figure(figsize=(25, 15))
@@ -113,6 +129,26 @@ def read_table_for_ticker(ticker_list):
 
 def calculate_d1_reletive_ret(df):
     return df/df.iloc[0] - 1
+
+### the first is the table, the second is the dic
+def get_industry_dic():
+    ind_map = pd.read_csv("industry_map.csv", index_col = 0)
+    
+    sector_ind_map = {}
+    
+    for i,row in ind_map.iterrows():
+        sector = row["sector"]
+        industry = row["industry"]
+        if sector not in sector_ind_map:
+            sector_ind_map[sector] = {industry:[i]}
+        else:
+            if industry not in sector_ind_map[sector]:
+                sector_ind_map[sector][industry] = [i]
+            else:
+                sector_ind_map[sector][industry].append(i)
+                
+    return ind_map, sector_ind_map
+
 
 if __name__ == "__main__":
     #write_latest_day_csv()

@@ -49,3 +49,4 @@ df = pd.read_csv("CIK_map.csv")
 
 
 utils.write_df_to_db(df, "CIK_map.db", "CIK_map")
+
