@@ -4,10 +4,8 @@ import matplotlib.pyplot as plt
 
 
 
-def get_d0_return(tickers):
-    pf,ret,corr = utils.read_table_for_ticker(tickers)
-    
-    
+def get_d0_return(tickers,start_date=None, end_date=None,mean = True):
+    pf,ret,corr = utils.read_table_for_ticker(tickers,start_date,end_date)
     d0_ret = utils.calculate_d1_reletive_ret(pf)
     
     thresdhold = d0_ret.std().mean() + 3*d0_ret.std().std()
@@ -16,10 +14,12 @@ def get_d0_return(tickers):
             print ("%s is greater than threshold"%i)
             d0_ret = d0_ret.drop(columns = [i])
             
-            
-    mean = d0_ret.mean(axis = 1)
-
-    return mean
+    
+    if mean:
+        mean = d0_ret.mean(axis = 1)
+        return mean
+    else:
+        return d0_ret
 
 
 if __name__ == "__main__":

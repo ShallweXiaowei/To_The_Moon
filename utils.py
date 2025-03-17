@@ -16,6 +16,8 @@ from sqlalchemy.orm import sessionmaker
 import time
 import seaborn as sns
 import matplotlib.pyplot as plt
+import math
+
 
 def get_cik_dic():
     cik_dic = pd.read_csv("ticker.txt",delimiter = "\t",header = None,index_col = 0)
@@ -101,13 +103,19 @@ def write_latest_day_csv():
 
 # Define the SQL query
 
-def read_table_for_ticker(ticker_list):
+def read_table_for_ticker(ticker_list,start_date=None, end_date=None):
+    if not start_date:
+        start_date = "2020-01-01"
+    
+    
+    ticker_list = [item for item in ticker_list if not isinstance(item, float) or not math.isnan(item)]
+
     ticker_list = tuple(ticker_list)
     #ticker_list = ("AAPL","MSFT","TSLA","NVDA", "SLG","REI","BA","SPR", "HITI")
     if len(ticker_list)>1:
-        sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker IN %s AND Date > '2022-01-01'"%str(ticker_list)
+        sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker IN %s AND Date > '%s'"%(str(ticker_list,),start_date)
     else:
-        sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker = '%s' AND Date > '2022-01-01'"%str(ticker_list[0])
+        sql_query = "SELECT Date, Close, ticker FROM stock_price WHERE ticker = '%s' AND Date > '%s'"%(str(ticker_list[0]),start_date)
     # Read the data into a Pandas DataFrame
     s = time.time()
     conn = sqlite3.connect('price.db')
